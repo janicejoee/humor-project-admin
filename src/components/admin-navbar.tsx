@@ -66,14 +66,17 @@ export function AdminNavbar({ user }: AdminNavbarProps) {
               {user.email}
             </p>
           )}
-          <form action="/auth/logout" method="post">
-            <button
-              type="submit"
-              className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-            >
-              Log out
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await fetch("/auth/logout", { method: "POST" });
+              if (res.redirected) window.location.href = res.url;
+              else window.location.href = "/";
+            }}
+            className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          >
+            Log out
+          </button>
         </div>
       </div>
     </header>
