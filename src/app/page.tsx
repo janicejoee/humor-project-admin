@@ -13,7 +13,7 @@ export default function HomePage() {
         <div className="mt-10">
           <Link
             href="/admin"
-            className="inline-flex rounded-full bg-zinc-900 px-6 py-3 text-sm font-medium text-white hover:opacity-90 dark:bg-zinc-100 dark:text-zinc-900"
+            className="inline-flex rounded-full bg-zinc-900 px-6 py-3 text-sm font-medium text-white shadow-md hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             Sign in to Admin
           </Link>

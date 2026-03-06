@@ -15,9 +15,9 @@ export default async function NewImagePage() {
       <div className="flex items-center gap-4">
         <Link
           href="/admin/images"
-          className="text-sm text-zinc-600 dark:text-zinc-400 hover:underline"
+          className="inline-flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
-          ← Images
+          ← Back to images
         </Link>
       </div>
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">

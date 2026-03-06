@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const links = [
   { href: "/admin", label: "Dashboard" },
@@ -7,29 +10,71 @@ const links = [
   { href: "/admin/captions", label: "Captions" },
 ];
 
-export function AdminNavbar() {
+type AdminNavbarProps = {
+  user?: { email?: string | null } | null;
+};
+
+export function AdminNavbar({ user }: AdminNavbarProps) {
+  const pathname = usePathname();
+
   return (
-    <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <nav className="flex items-center gap-6">
-          <Link href="/admin" className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            Admin
+    <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="flex items-center gap-8">
+          <Link
+            href="/admin"
+            className="flex items-center gap-2 shrink-0"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </span>
+            <span className="hidden font-semibold text-zinc-900 dark:text-zinc-100 sm:inline">
+              Admin
+            </span>
           </Link>
-          {links.map(({ href, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+
+          <nav className="flex items-center gap-0.5" aria-label="Main">
+            {links.map(({ href, label }) => {
+              const isActive =
+                pathname === href ||
+                (href !== "/admin" && pathname.startsWith(href + "/"));
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {user?.email && (
+            <p
+              className="hidden max-w-[200px] truncate rounded-md bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 md:block"
+              title={user.email}
             >
-              {label}
-            </Link>
-          ))}
-        </nav>
-        <form action="/auth/logout" method="post">
-          <button type="submit" className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
-            Log out
-          </button>
-        </form>
+              {user.email}
+            </p>
+          )}
+          <form action="/auth/logout" method="post">
+            <button
+              type="submit"
+              className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              Log out
+            </button>
+          </form>
+        </div>
       </div>
     </header>
   );
