@@ -1,0 +1,73 @@
+/**
+ * Database types for admin area. Matches public.profiles, public.images, public.captions.
+ */
+
+export interface Profile {
+  id: string;
+  created_datetime_utc: string | null;
+  modified_datetime_utc: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  is_superadmin: boolean;
+  is_in_study: boolean;
+  is_matrix_admin: boolean;
+}
+
+export interface Image {
+  id: string;
+  created_datetime_utc: string;
+  modified_datetime_utc: string | null;
+  url: string | null;
+  is_common_use: boolean | null;
+  profile_id: string | null;
+  additional_context: string | null;
+  is_public: boolean | null;
+  image_description: string | null;
+  celebrity_recognition: string | null;
+  embedding: unknown | null; // pgvector
+}
+
+export interface Caption {
+  id: string;
+  created_datetime_utc: string;
+  modified_datetime_utc: string | null;
+  content: string | null;
+  is_public: boolean;
+  profile_id: string;
+  image_id: string;
+  humor_flavor_id: number | null;
+  is_featured: boolean;
+  caption_request_id: number | null;
+  like_count: number;
+  llm_prompt_chain_id: number | null;
+}
+
+/** Supabase Database type for typed client (e.g. createClient<Database>) */
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: Profile;
+        Insert: Omit<Profile, "id"> & { id: string };
+        Update: Partial<Omit<Profile, "id">>;
+      };
+      images: {
+        Row: Image;
+        Insert: Partial<Omit<Image, "id" | "created_datetime_utc">> & {
+          id?: string;
+          created_datetime_utc?: string;
+        };
+        Update: Partial<Omit<Image, "id" | "created_datetime_utc">>;
+      };
+      captions: {
+        Row: Caption;
+        Insert: Omit<Caption, "id" | "created_datetime_utc"> & {
+          id?: string;
+          created_datetime_utc?: string;
+        };
+        Update: Partial<Omit<Caption, "id" | "created_datetime_utc">>;
+      };
+    };
+  };
+}
