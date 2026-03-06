@@ -33,7 +33,7 @@ export function ImageForm({
   const [state, formAction, isPending] = useActionState(
     async (_: unknown, fd: FormData) => {
       const result = await action(fd);
-      if (result.error) return result.error;
+      if (result && typeof result === "object" && result.error) return result.error;
       return null;
     },
     null as string | null
@@ -71,7 +71,7 @@ export function ImageForm({
           <option value="">— None —</option>
           {profiles.map((p) => (
             <option key={p.id} value={p.id}>
-              {[p.first_name, p.last_name].filter(Boolean).join(" ") || p.email ?? p.id}
+              {([p.first_name, p.last_name].filter(Boolean).join(" ") || p.email) ?? p.id}
             </option>
           ))}
         </select>

@@ -33,7 +33,12 @@ export default async function AdminImagesPage({
   if (params.is_common_use === "true") query = query.eq("is_common_use", true);
   if (params.is_public === "true") query = query.eq("is_public", true);
 
-  const { data: images, error, count } = await query;
+  const { data: rawImages, error, count } = await query;
+
+  const images = (rawImages ?? []).map((row) => ({
+    ...row,
+    profiles: Array.isArray(row.profiles) ? row.profiles[0] ?? null : row.profiles ?? null,
+  }));
 
   if (error) {
     return (
@@ -111,7 +116,7 @@ export default async function AdminImagesPage({
         </Link>
       </div>
 
-      <ImagesTable images={images ?? []} />
+      <ImagesTable images={images} />
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
