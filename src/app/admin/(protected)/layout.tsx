@@ -20,7 +20,7 @@ export default async function AdminProtectedLayout({
     .single();
 
   if (error || !profile?.is_superadmin) {
-    redirect("/admin/forbidden");
+    redirect("/auth/logout?redirect=" + encodeURIComponent("/admin/forbidden"));
   }
 
   return (
