@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -46,14 +47,57 @@ const sections = [
   },
 ];
 
-export function AdminSidebar() {
+type AdminSidebarProps = {
+  user?: { email?: string | null } | null;
+};
+
+export function AdminSidebar({ user }: AdminSidebarProps) {
   const pathname = usePathname();
 
   return (
     <aside className="hidden w-64 shrink-0 md:block">
-      <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto rounded-xl border border-zinc-200 bg-white/80 p-3 text-sm shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
+      <div className="sticky top-0 h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white/80 p-4 text-sm shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
+        <div className="mb-5 flex items-center justify-between gap-2">
+          <Link href="/admin" className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
+              <Image
+                src="/icon.svg"
+                alt="CrackdTagram"
+                width={22}
+                height={22}
+                className="h-5 w-5"
+              />
+            </span>
+            <div className="hidden leading-tight sm:block">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                CrackdTagram
+              </p>
+              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                Admin
+              </p>
+            </div>
+          </Link>
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await fetch("/auth/logout", { method: "POST" });
+              if (res.redirected) window.location.href = res.url;
+              else window.location.href = "/";
+            }}
+            className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+          >
+            Log out
+          </button>
+        </div>
+
+        {user?.email && (
+          <p className="mb-4 truncate rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-600 ring-1 ring-zinc-100 dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-800">
+            {user.email}
+          </p>
+        )}
+
         <nav className="space-y-5" aria-label="Admin sections">
-        {sections.map((section) => (
+          {sections.map((section) => (
           <div key={section.label} className="space-y-2">
             <p className="px-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               {section.label}
