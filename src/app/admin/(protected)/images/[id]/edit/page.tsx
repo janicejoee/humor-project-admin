@@ -39,7 +39,7 @@ export default async function EditImagePage({
         Edit image
       </h1>
       <ImageForm
-        action={(fd) => updateImageAction(id, fd)}
+        action={updateImageAction.bind(null, id)}
         profiles={profiles ?? []}
         cancelHref="/admin/images"
         initial={image}

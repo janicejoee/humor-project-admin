@@ -1,48 +1,8 @@
 import { getCachedClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { DailyBarChart } from "./dashboard-charts";
-
-const CHART_DAYS = 14;
-
-function toDateKey(iso: string): string {
-  return iso.slice(0, 10);
-}
-
-function buildDailyCountSeries(
-  dates: string[]
-): { date: string; count: number }[] {
-  const start = new Date();
-  start.setDate(start.getDate() - CHART_DAYS);
-  start.setHours(0, 0, 0, 0);
-
-  const byDay: Record<string, number> = {};
-  for (let i = 0; i < CHART_DAYS; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    byDay[toDateKey(d.toISOString())] = 0;
-  }
-  for (const iso of dates) {
-    const key = toDateKey(iso);
-    if (key in byDay) byDay[key]++;
-  }
-
-  return Object.keys(byDay)
-    .sort()
-    .map((date) => ({
-      date: new Date(date + "Z").toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      }),
-      count: byDay[date],
-    }));
-}
 
 export default async function AdminDashboardPage() {
   const supabase = await getCachedClient();
-
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - CHART_DAYS);
-  const cutoffIso = cutoff.toISOString();
 
   const [
     { count: profilesCount },
@@ -54,8 +14,7 @@ export default async function AdminDashboardPage() {
     { count: llmModelsCount },
     { count: humorFlavorsCount },
     { data: recentProfiles },
-    { data: recentSignups },
-    { data: recentImages },
+    { data: topCaptionRows },
   ] = await Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase.from("images").select("id", { count: "exact", head: true }),
@@ -71,24 +30,22 @@ export default async function AdminDashboardPage() {
       .order("created_datetime_utc", { ascending: false })
       .limit(8),
     supabase
-      .from("profiles")
-      .select("created_datetime_utc")
-      .gte("created_datetime_utc", cutoffIso),
-    supabase
-      .from("images")
-      .select("created_datetime_utc")
-      .gte("created_datetime_utc", cutoffIso),
+      .from("captions")
+      .select("id, content, like_count, image_id, images(url)", {
+        count: "exact",
+      })
+      .not("image_id", "is", null)
+      .order("like_count", { ascending: false })
+      .limit(1),
   ]);
 
-  const signupDates = (recentSignups ?? [])
-    .map((r) => r.created_datetime_utc)
-    .filter(Boolean) as string[];
-  const imageDates = (recentImages ?? [])
-    .map((r) => r.created_datetime_utc)
-    .filter(Boolean) as string[];
-
-  const signupsChartData = buildDailyCountSeries(signupDates);
-  const imagesChartData = buildDailyCountSeries(imageDates);
+  const topCaption = (topCaptionRows ?? [])[0] ?? null;
+  const topCaptionImage =
+    topCaption && "images" in topCaption
+      ? (Array.isArray((topCaption as any).images)
+          ? (topCaption as any).images[0]
+          : (topCaption as any).images)
+      : null;
 
   const statCards = [
     { href: "/admin/users", label: "Users", value: profilesCount ?? 0 },
@@ -124,35 +81,58 @@ export default async function AdminDashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            Signups (last {CHART_DAYS} days)
-          </h2>
-          <div className="mt-4">
-            <DailyBarChart
-              data={signupsChartData}
-              dataKey="count"
-              name="Signups"
-              color="hsl(220 70% 50%)"
-            />
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          Top liked caption
+        </h2>
+        {topCaption ? (
+          <div className="mt-4 flex flex-col gap-4 md:flex-row">
+            <div className="w-full max-w-sm shrink-0">
+              {topCaptionImage?.url ? (
+                <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={topCaptionImage.url}
+                    alt=""
+                    className="h-64 w-full max-w-sm object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-64 w-full max-w-sm items-center justify-center rounded-lg border border-dashed border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
+                  No image
+                </div>
+              )}
+            </div>
+            <div className="flex-1 space-y-3">
+              <p className="text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Caption
+              </p>
+              <p className="rounded-lg bg-zinc-50 p-3 text-base leading-relaxed text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100">
+                {topCaption.content ?? "—"}
+              </p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                  {topCaption.like_count?.toLocaleString?.() ??
+                    String(topCaption.like_count ?? 0)}
+                </span>{" "}
+                likes
+              </p>
+              {topCaption.image_id && (
+                <Link
+                  href={`/admin/images/${topCaption.image_id}/edit`}
+                  className="inline-flex text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  View image details
+                </Link>
+              )}
+            </div>
           </div>
-        </section>
-
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            Images uploaded (last {CHART_DAYS} days)
-          </h2>
-          <div className="mt-4">
-            <DailyBarChart
-              data={imagesChartData}
-              dataKey="count"
-              name="Images"
-              color="hsl(160 60% 45%)"
-            />
-          </div>
-        </section>
-      </div>
+        ) : (
+          <p className="mt-4 text-sm text-zinc-500">
+            No captions with images found yet.
+          </p>
+        )}
+      </section>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
