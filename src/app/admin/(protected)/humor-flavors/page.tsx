@@ -1,5 +1,6 @@
 import { getCachedClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { HumorFlavorsTable } from "./flavors-table";
 
 const PAGE_SIZE = 25;
 
@@ -36,65 +37,7 @@ export default async function AdminHumorFlavorsPage({
         Humor Flavors
       </h1>
 
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-          <thead>
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                ID
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Slug
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Description
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Created
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-            {(flavors ?? []).map((f) => (
-              <tr
-                key={f.id}
-                className="text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-              >
-                <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                  {f.id}
-                </td>
-                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                  {f.slug}
-                </td>
-                <td className="max-w-md px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                  <span className="line-clamp-2">{f.description ?? "—"}</span>
-                </td>
-                <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
-                  {f.created_datetime_utc
-                    ? new Date(f.created_datetime_utc).toLocaleString()
-                    : "—"}
-                </td>
-                <td className="px-4 py-3">
-                  <Link
-                    href={`/admin/humor-flavor-steps?humor_flavor_id=${f.id}`}
-                    className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-                  >
-                    View steps
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {(flavors?.length ?? 0) === 0 && (
-          <p className="px-4 py-12 text-center text-zinc-500">
-            No humor flavors found.
-          </p>
-        )}
-      </div>
+      <HumorFlavorsTable flavors={flavors ?? []} />
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">

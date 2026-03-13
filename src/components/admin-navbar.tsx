@@ -10,27 +10,6 @@ const primaryLinks = [
   { href: "/admin/captions", label: "Captions" },
 ];
 
-const contentLinks = [
-  { href: "/admin/caption-requests", label: "Caption Requests" },
-  { href: "/admin/caption-examples", label: "Caption Examples" },
-  { href: "/admin/humor-flavors", label: "Humor Flavors" },
-  { href: "/admin/humor-flavor-steps", label: "Humor Steps" },
-  { href: "/admin/humor-mix", label: "Humor Mix" },
-  { href: "/admin/terms", label: "Terms" },
-];
-
-const llmLinks = [
-  { href: "/admin/llm-providers", label: "Providers" },
-  { href: "/admin/llm-models", label: "Models" },
-  { href: "/admin/llm-prompt-chains", label: "Prompt Chains" },
-  { href: "/admin/llm-responses", label: "Responses" },
-];
-
-const accessLinks = [
-  { href: "/admin/allowed-signup-domains", label: "Signup Domains" },
-  { href: "/admin/whitelist-emails", label: "Whitelist Emails" },
-];
-
 type AdminNavbarProps = {
   user?: { email?: string | null } | null;
 };

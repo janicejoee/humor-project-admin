@@ -27,10 +27,12 @@ export default async function AdminProtectedLayout({
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <AdminNavbar user={user} />
-      <div className="mx-auto flex max-w-7xl gap-4 px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl gap-4 px-4 pb-10 pt-6 sm:px-6 lg:px-8">
         <AdminSidebar />
         <main className="flex-1 min-w-0">
-          {children}
+          <div className="rounded-2xl border border-zinc-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/60 sm:p-6">
+            {children}
+          </div>
         </main>
       </div>
     </div>
