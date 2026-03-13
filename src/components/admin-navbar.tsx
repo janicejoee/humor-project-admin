@@ -3,11 +3,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const links = [
+const primaryLinks = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/images", label: "Images" },
   { href: "/admin/captions", label: "Captions" },
+];
+
+const contentLinks = [
+  { href: "/admin/caption-requests", label: "Caption Requests" },
+  { href: "/admin/caption-examples", label: "Caption Examples" },
+  { href: "/admin/humor-flavors", label: "Humor Flavors" },
+  { href: "/admin/humor-flavor-steps", label: "Humor Steps" },
+  { href: "/admin/humor-mix", label: "Humor Mix" },
+  { href: "/admin/terms", label: "Terms" },
+];
+
+const llmLinks = [
+  { href: "/admin/llm-providers", label: "Providers" },
+  { href: "/admin/llm-models", label: "Models" },
+  { href: "/admin/llm-prompt-chains", label: "Prompt Chains" },
+  { href: "/admin/llm-responses", label: "Responses" },
+];
+
+const accessLinks = [
+  { href: "/admin/allowed-signup-domains", label: "Signup Domains" },
+  { href: "/admin/whitelist-emails", label: "Whitelist Emails" },
 ];
 
 type AdminNavbarProps = {
@@ -18,9 +39,9 @@ export function AdminNavbar({ user }: AdminNavbarProps) {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-3 sm:gap-4">
           <Link
             href="/admin"
             className="flex items-center gap-2 shrink-0"
@@ -35,8 +56,11 @@ export function AdminNavbar({ user }: AdminNavbarProps) {
             </span>
           </Link>
 
-          <nav className="flex items-center gap-0.5" aria-label="Main">
-            {links.map(({ href, label }) => {
+          <nav
+            className="hidden items-center gap-1 text-sm text-zinc-500 sm:flex"
+            aria-label="Main"
+          >
+            {primaryLinks.map(({ href, label }) => {
               const isActive =
                 pathname === href ||
                 (href !== "/admin" && pathname.startsWith(href + "/"));
@@ -44,7 +68,7 @@ export function AdminNavbar({ user }: AdminNavbarProps) {
                 <Link
                   key={href}
                   href={href}
-                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${
                     isActive
                       ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
                       : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"

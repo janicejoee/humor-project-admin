@@ -40,15 +40,27 @@ export function ImageForm({
   );
 
   return (
-    <form action={formAction} className="max-w-xl space-y-4">
+    <form action={formAction} className="max-w-xl space-y-4" encType="multipart/form-data">
       {state && (
         <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
           {state}
         </p>
       )}
       <div>
+        <label htmlFor="file" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Upload image (or use URL below)
+        </label>
+        <input
+          id="file"
+          name="file"
+          type="file"
+          accept="image/*"
+          className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+        />
+      </div>
+      <div>
         <label htmlFor="url" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          URL
+          URL (if not uploading)
         </label>
         <input
           id="url"

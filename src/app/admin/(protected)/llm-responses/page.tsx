@@ -3,10 +3,10 @@ import Link from "next/link";
 
 const PAGE_SIZE = 25;
 
-export default async function AdminCaptionsPage({
+export default async function AdminLlmResponsesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; caption_request_id?: string }>;
+  searchParams: Promise<{ page?: string; llm_prompt_chain_id?: string }>;
 }) {
   const supabase = await getCachedClient();
   const params = await searchParams;
@@ -15,23 +15,32 @@ export default async function AdminCaptionsPage({
   const to = from + PAGE_SIZE - 1;
 
   let query = supabase
-    .from("captions")
-    .select("id, content, image_id, profile_id, is_featured, like_count, caption_request_id, created_datetime_utc", {
-      count: "exact",
-    })
+    .from("llm_model_responses")
+    .select(
+      "id, llm_model_response, processing_time_seconds, llm_model_id, caption_request_id, humor_flavor_id, llm_prompt_chain_id, created_datetime_utc, llm_models(name)",
+      { count: "exact" }
+    )
     .order("created_datetime_utc", { ascending: false })
     .range(from, to);
 
-  if (params.caption_request_id) {
-    query = query.eq("caption_request_id", parseInt(params.caption_request_id, 10));
+  if (params.llm_prompt_chain_id) {
+    query = query.eq(
+      "llm_prompt_chain_id",
+      parseInt(params.llm_prompt_chain_id, 10)
+    );
   }
 
-  const { data: captions, error, count } = await query;
+  const { data: responses, error, count } = await query;
+
+  const responsesWithModel = (responses ?? []).map((r) => ({
+    ...r,
+    llm_models: Array.isArray(r.llm_models) ? r.llm_models[0] : r.llm_models,
+  }));
 
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-        Failed to load captions: {error.message}
+        Failed to load LLM responses: {error.message}
       </div>
     );
   }
@@ -51,11 +60,11 @@ export default async function AdminCaptionsPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-          Captions
+          LLM Responses
         </h1>
-        {params.caption_request_id && (
+        {params.llm_prompt_chain_id && (
           <Link
-            href="/admin/captions"
+            href="/admin/llm-responses"
             className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
             ← Clear filter
@@ -68,16 +77,16 @@ export default async function AdminCaptionsPage({
           <thead>
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Content
+                Model
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Image
+                Response
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Featured
+                Time (s)
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Likes
+                Caption req
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                 Created
@@ -85,38 +94,40 @@ export default async function AdminCaptionsPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-            {(captions ?? []).map((c) => (
+            {responsesWithModel.map((r) => (
               <tr
-                key={c.id}
+                key={r.id}
                 className="text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               >
-                <td className="max-w-md px-4 py-3 text-zinc-900 dark:text-zinc-100">
-                  <span className="line-clamp-2">{c.content ?? "—"}</span>
+                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                  {r.llm_models?.name ?? r.llm_model_id}
                 </td>
+                <td className="max-w-md px-4 py-3 text-zinc-900 dark:text-zinc-100">
+                  <span className="line-clamp-2">
+                    {r.llm_model_response ?? "—"}
+                  </span>
+                </td>
+                <td className="px-4 py-3">{r.processing_time_seconds}</td>
                 <td className="px-4 py-3">
                   <Link
-                    href={`/admin/images/${c.image_id}/edit`}
+                    href={`/admin/caption-requests?id=${r.caption_request_id}`}
                     className="font-medium text-blue-600 hover:underline dark:text-blue-400"
                   >
-                    {c.image_id.slice(0, 8)}…
+                    {r.caption_request_id}
                   </Link>
                 </td>
-                <td className="px-4 py-3">{c.is_featured ? "Yes" : "No"}</td>
-                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                  {c.like_count}
-                </td>
                 <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
-                  {c.created_datetime_utc
-                    ? new Date(c.created_datetime_utc).toLocaleString()
+                  {r.created_datetime_utc
+                    ? new Date(r.created_datetime_utc).toLocaleString()
                     : "—"}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {(captions?.length ?? 0) === 0 && (
+        {responsesWithModel.length === 0 && (
           <p className="px-4 py-12 text-center text-zinc-500">
-            No captions found.
+            No LLM responses found.
           </p>
         )}
       </div>
@@ -125,7 +136,7 @@ export default async function AdminCaptionsPage({
         <div className="flex items-center justify-center gap-2">
           {page > 1 && (
             <Link
-              href={`/admin/captions${buildQuery({ page: String(page - 1) })}`}
+              href={`/admin/llm-responses${buildQuery({ page: String(page - 1) })}`}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
               Previous
@@ -136,7 +147,7 @@ export default async function AdminCaptionsPage({
           </span>
           {page < totalPages && (
             <Link
-              href={`/admin/captions${buildQuery({ page: String(page + 1) })}`}
+              href={`/admin/llm-responses${buildQuery({ page: String(page + 1) })}`}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
               Next

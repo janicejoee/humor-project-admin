@@ -3,10 +3,10 @@ import Link from "next/link";
 
 const PAGE_SIZE = 25;
 
-export default async function AdminCaptionsPage({
+export default async function AdminCaptionRequestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; caption_request_id?: string }>;
+  searchParams: Promise<{ page?: string; id?: string }>;
 }) {
   const supabase = await getCachedClient();
   const params = await searchParams;
@@ -15,108 +15,103 @@ export default async function AdminCaptionsPage({
   const to = from + PAGE_SIZE - 1;
 
   let query = supabase
-    .from("captions")
-    .select("id, content, image_id, profile_id, is_featured, like_count, caption_request_id, created_datetime_utc", {
-      count: "exact",
-    })
+    .from("caption_requests")
+    .select(
+      "id, created_datetime_utc, profile_id, image_id, profiles(email), images(url)",
+      { count: "exact" }
+    )
     .order("created_datetime_utc", { ascending: false })
     .range(from, to);
 
-  if (params.caption_request_id) {
-    query = query.eq("caption_request_id", parseInt(params.caption_request_id, 10));
+  if (params.id) {
+    query = query.eq("id", parseInt(params.id, 10));
   }
 
-  const { data: captions, error, count } = await query;
+  const { data: requests, error, count } = await query;
+
+  const requestsWithJoins = (requests ?? []).map((r) => ({
+    ...r,
+    profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles,
+    images: Array.isArray(r.images) ? r.images[0] : r.images,
+  }));
 
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-        Failed to load captions: {error.message}
+        Failed to load caption requests: {error.message}
       </div>
     );
   }
 
   const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE);
 
-  function buildQuery(overrides: Record<string, string | undefined>) {
-    const sp = new URLSearchParams();
-    Object.entries({ ...params, ...overrides }).forEach(([k, v]) => {
-      if (v != null && v !== "") sp.set(k, v);
-    });
-    const s = sp.toString();
-    return s ? `?${s}` : "";
-  }
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-          Captions
-        </h1>
-        {params.caption_request_id && (
-          <Link
-            href="/admin/captions"
-            className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-          >
-            ← Clear filter
-          </Link>
-        )}
-      </div>
+      <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+        Caption Requests
+      </h1>
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
           <thead>
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Content
+                ID
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Profile
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                 Image
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Featured
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Likes
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                 Created
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Actions
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-            {(captions ?? []).map((c) => (
+            {requestsWithJoins.map((r) => (
               <tr
-                key={c.id}
+                key={r.id}
                 className="text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               >
-                <td className="max-w-md px-4 py-3 text-zinc-900 dark:text-zinc-100">
-                  <span className="line-clamp-2">{c.content ?? "—"}</span>
+                <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
+                  {r.id}
+                </td>
+                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                  {r.profiles?.email ?? r.profile_id}
                 </td>
                 <td className="px-4 py-3">
                   <Link
-                    href={`/admin/images/${c.image_id}/edit`}
+                    href={`/admin/images/${r.image_id}/edit`}
                     className="font-medium text-blue-600 hover:underline dark:text-blue-400"
                   >
-                    {c.image_id.slice(0, 8)}…
+                    {r.image_id.slice(0, 8)}…
                   </Link>
                 </td>
-                <td className="px-4 py-3">{c.is_featured ? "Yes" : "No"}</td>
-                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                  {c.like_count}
-                </td>
                 <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
-                  {c.created_datetime_utc
-                    ? new Date(c.created_datetime_utc).toLocaleString()
+                  {r.created_datetime_utc
+                    ? new Date(r.created_datetime_utc).toLocaleString()
                     : "—"}
+                </td>
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/admin/captions?caption_request_id=${r.id}`}
+                    className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    View captions
+                  </Link>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {(captions?.length ?? 0) === 0 && (
+        {requestsWithJoins.length === 0 && (
           <p className="px-4 py-12 text-center text-zinc-500">
-            No captions found.
+            No caption requests found.
           </p>
         )}
       </div>
@@ -125,7 +120,7 @@ export default async function AdminCaptionsPage({
         <div className="flex items-center justify-center gap-2">
           {page > 1 && (
             <Link
-              href={`/admin/captions${buildQuery({ page: String(page - 1) })}`}
+              href={`/admin/caption-requests?page=${page - 1}`}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
               Previous
@@ -136,7 +131,7 @@ export default async function AdminCaptionsPage({
           </span>
           {page < totalPages && (
             <Link
-              href={`/admin/captions${buildQuery({ page: String(page + 1) })}`}
+              href={`/admin/caption-requests?page=${page + 1}`}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
               Next
