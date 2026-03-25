@@ -23,7 +23,7 @@ export default async function AdminImagesPage({
   let query = supabase
     .from("images")
     .select(
-      "id, url, profile_id, is_common_use, is_public, created_datetime_utc, profiles(email, first_name, last_name)",
+      "id, url, profile_id, is_common_use, is_public, created_datetime_utc, profiles!profile_id(email, first_name, last_name)",
       { count: "exact" }
     )
     .order("created_datetime_utc", { ascending: false })

@@ -18,7 +18,7 @@ export default async function AdminHumorMixPage({
   const { data: mixRows, error, count } = await supabase
     .from("humor_flavor_mix")
     .select(
-      "id, humor_flavor_id, caption_count, humor_flavors(slug, description)",
+      "id, humor_flavor_id, caption_count, humor_flavors!humor_flavor_id(slug, description)",
       { count: "exact" }
     )
     .order("humor_flavor_id", { ascending: true })

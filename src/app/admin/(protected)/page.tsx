@@ -31,7 +31,7 @@ export default async function AdminDashboardPage() {
       .limit(8),
     supabase
       .from("captions")
-      .select("id, content, like_count, image_id, images(url)", {
+      .select("id, content, like_count, image_id, images!image_id(url)", {
         count: "exact",
       })
       .not("image_id", "is", null)

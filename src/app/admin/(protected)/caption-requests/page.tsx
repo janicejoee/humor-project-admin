@@ -17,7 +17,7 @@ export default async function AdminCaptionRequestsPage({
   let query = supabase
     .from("caption_requests")
     .select(
-      "id, created_datetime_utc, profile_id, image_id, profiles(email), images(url)",
+      "id, created_datetime_utc, profile_id, image_id, profiles!profile_id(email), images!image_id(url)",
       { count: "exact" }
     )
     .order("created_datetime_utc", { ascending: false })

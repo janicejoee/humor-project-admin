@@ -18,7 +18,7 @@ export default async function AdminLlmModelsPage({
   const { data: models, error, count } = await supabase
     .from("llm_models")
     .select(
-      "id, name, llm_provider_id, provider_model_id, is_temperature_supported, llm_providers(name)",
+      "id, name, llm_provider_id, provider_model_id, is_temperature_supported, llm_providers!llm_provider_id(name)",
       { count: "exact" }
     )
     .order("id", { ascending: true })
