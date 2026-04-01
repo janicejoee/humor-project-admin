@@ -20,11 +20,6 @@ export default async function EditImagePage({
 
   if (error || !image) notFound();
 
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, email, first_name, last_name")
-    .order("email");
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -40,7 +35,6 @@ export default async function EditImagePage({
       </h1>
       <ImageForm
         action={updateImageAction.bind(null, id)}
-        profiles={profiles ?? []}
         cancelHref="/admin/images"
         initial={image}
       />

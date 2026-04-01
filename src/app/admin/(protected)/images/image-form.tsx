@@ -2,16 +2,8 @@
 
 import { useActionState } from "react";
 
-type Profile = {
-  id: string;
-  email: string | null;
-  first_name: string | null;
-  last_name: string | null;
-};
-
 type ImageRow = {
   url?: string | null;
-  profile_id?: string | null;
   is_common_use?: boolean | null;
   is_public?: boolean | null;
   additional_context?: string | null;
@@ -21,12 +13,10 @@ type ImageRow = {
 
 export function ImageForm({
   action,
-  profiles,
   cancelHref,
   initial,
 }: {
   action: (formData: FormData) => Promise<{ error?: string } | void>;
-  profiles: Profile[];
   cancelHref: string;
   initial?: ImageRow | null;
 }) {
@@ -69,24 +59,6 @@ export function ImageForm({
           defaultValue={initial?.url ?? ""}
           className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
         />
-      </div>
-      <div>
-        <label htmlFor="profile_id" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Owner (profile)
-        </label>
-        <select
-          id="profile_id"
-          name="profile_id"
-          defaultValue={initial?.profile_id ?? ""}
-          className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
-        >
-          <option value="">— None —</option>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {([p.first_name, p.last_name].filter(Boolean).join(" ") || p.email) ?? p.id}
-            </option>
-          ))}
-        </select>
       </div>
       <div className="flex gap-6">
         <label className="flex items-center gap-2">

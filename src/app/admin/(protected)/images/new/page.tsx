@@ -1,15 +1,8 @@
-import { getCachedClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { createImageAction } from "../actions";
 import { ImageForm } from "../image-form";
 
 export default async function NewImagePage() {
-  const supabase = await getCachedClient();
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, email, first_name, last_name")
-    .order("email");
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -25,7 +18,6 @@ export default async function NewImagePage() {
       </h1>
       <ImageForm
         action={createImageAction}
-        profiles={profiles ?? []}
         cancelHref="/admin/images"
       />
     </div>
