@@ -1,4 +1,4 @@
-import { getCachedClient, getCachedUser } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -13,12 +13,14 @@ export async function GET(req: Request) {
     );
   }
 
-  const user = await getCachedUser();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = await getCachedClient();
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("is_superadmin")
