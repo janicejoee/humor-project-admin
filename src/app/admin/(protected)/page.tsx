@@ -8,6 +8,7 @@ export default async function AdminDashboardPage() {
     { count: profilesCount },
     { count: imagesCount },
     { count: captionsCount },
+    { count: ratedCaptionsCount },
     { count: captionRequestsCount },
     { count: termsCount },
     { count: captionExamplesCount },
@@ -19,6 +20,10 @@ export default async function AdminDashboardPage() {
     supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase.from("images").select("id", { count: "exact", head: true }),
     supabase.from("captions").select("id", { count: "exact", head: true }),
+    supabase
+      .from("captions")
+      .select("id", { count: "exact", head: true })
+      .gt("like_count", 0),
     supabase.from("caption_requests").select("id", { count: "exact", head: true }),
     supabase.from("terms").select("id", { count: "exact", head: true }),
     supabase.from("caption_examples").select("id", { count: "exact", head: true }),
@@ -38,6 +43,9 @@ export default async function AdminDashboardPage() {
       .order("like_count", { ascending: false })
       .limit(1),
   ]);
+  const ratedCaptionShare = (captionsCount ?? 0) > 0
+    ? Math.round(((ratedCaptionsCount ?? 0) / (captionsCount ?? 1)) * 100)
+    : 0;
 
   const topCaption = (topCaptionRows ?? [])[0] ?? null;
   const topCaptionImage =
@@ -80,6 +88,46 @@ export default async function AdminDashboardPage() {
           </Link>
         ))}
       </div>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Caption rating stats
+          </h2>
+          <Link
+            href="/admin/captions?min_likes=1"
+            className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+          >
+            View rated captions
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Rated captions
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {(ratedCaptionsCount ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Unrated captions
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {Math.max((captionsCount ?? 0) - (ratedCaptionsCount ?? 0), 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Rated share
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {ratedCaptionShare}%
+            </p>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">

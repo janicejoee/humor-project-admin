@@ -6,7 +6,7 @@ const PAGE_SIZE = 25;
 export default async function AdminCaptionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; caption_request_id?: string }>;
+  searchParams: Promise<{ page?: string; caption_request_id?: string; min_likes?: string }>;
 }) {
   const supabase = await getCachedClient();
   const params = await searchParams;
@@ -24,6 +24,9 @@ export default async function AdminCaptionsPage({
 
   if (params.caption_request_id) {
     query = query.eq("caption_request_id", parseInt(params.caption_request_id, 10));
+  }
+  if (params.min_likes) {
+    query = query.gte("like_count", parseInt(params.min_likes, 10) || 0);
   }
 
   const { data: captions, error, count } = await query;
@@ -53,14 +56,41 @@ export default async function AdminCaptionsPage({
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
           Captions
         </h1>
-        {params.caption_request_id && (
-          <Link
-            href="/admin/captions"
-            className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-          >
-            ← Clear filter
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {(params.caption_request_id || params.min_likes) && (
+            <Link
+              href="/admin/captions"
+              className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            >
+              ← Clear filter
+            </Link>
+          )}
+          <form method="get" className="flex items-center gap-2">
+            {params.caption_request_id && (
+              <input
+                type="hidden"
+                name="caption_request_id"
+                value={params.caption_request_id}
+              />
+            )}
+            <input type="hidden" name="page" value="1" />
+            <input
+              type="number"
+              name="min_likes"
+              min="0"
+              step="1"
+              defaultValue={params.min_likes ?? ""}
+              placeholder="Min likes"
+              className="w-28 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            />
+            <button
+              type="submit"
+              className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              Apply
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

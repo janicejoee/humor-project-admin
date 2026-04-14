@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type FlavorRow = {
   id: number;
@@ -24,10 +25,13 @@ type StepRow = {
 const COL_COUNT = 5;
 
 export function HumorFlavorsTable({ flavors }: { flavors: FlavorRow[] }) {
+  const router = useRouter();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [steps, setSteps] = useState<StepRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [duplicateLoadingId, setDuplicateLoadingId] = useState<number | null>(null);
 
   async function toggle(flavor: FlavorRow) {
     if (expandedId === flavor.id) {
@@ -55,8 +59,51 @@ export function HumorFlavorsTable({ flavors }: { flavors: FlavorRow[] }) {
     }
   }
 
+  async function duplicateFlavor(flavor: FlavorRow) {
+    const proposed = window.prompt(
+      "Enter a unique name for the duplicated flavor:",
+      `${flavor.slug}-copy`
+    );
+
+    if (proposed === null) return;
+
+    const newSlug = proposed.trim();
+    if (!newSlug) {
+      setDuplicateError("Please provide a non-empty unique flavor name.");
+      return;
+    }
+
+    setDuplicateError(null);
+    setDuplicateLoadingId(flavor.id);
+
+    try {
+      const res = await fetch("/api/admin/humor-flavors/duplicate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          humor_flavor_id: flavor.id,
+          new_slug: newSlug,
+        }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Failed to duplicate flavor");
+      router.refresh();
+    } catch (e) {
+      setDuplicateError(
+        e instanceof Error ? e.message : "Failed to duplicate flavor"
+      );
+    } finally {
+      setDuplicateLoadingId(null);
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      {duplicateError && (
+        <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          {duplicateError}
+        </div>
+      )}
       <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
         <thead>
           <tr>
@@ -98,13 +145,23 @@ export function HumorFlavorsTable({ flavors }: { flavors: FlavorRow[] }) {
                       : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggle(f)}
-                      className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-                    >
-                      {isOpen ? "Hide steps" : "View steps"}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggle(f)}
+                        className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        {isOpen ? "Hide steps" : "View steps"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => duplicateFlavor(f)}
+                        disabled={duplicateLoadingId === f.id}
+                        className="font-medium text-emerald-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-400"
+                      >
+                        {duplicateLoadingId === f.id ? "Duplicating..." : "Duplicate"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 {isOpen && (
