@@ -1,8 +1,42 @@
 import { getCachedClient } from "@/lib/supabase/server";
+import { DailyBarChart, type DailyCount } from "./dashboard-charts";
 import Link from "next/link";
+
+type RowWithCreatedAt = { created_datetime_utc: string | null };
+
+const dateLabelFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+});
+
+function buildDailySeries(rows: RowWithCreatedAt[] | null | undefined, days = 7): DailyCount[] {
+  const countsByDay = new Map<string, number>();
+  const now = new Date();
+
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    countsByDay.set(d.toISOString().slice(0, 10), 0);
+  }
+
+  for (const row of rows ?? []) {
+    if (!row.created_datetime_utc) continue;
+    const dayKey = new Date(row.created_datetime_utc).toISOString().slice(0, 10);
+    if (countsByDay.has(dayKey)) {
+      countsByDay.set(dayKey, (countsByDay.get(dayKey) ?? 0) + 1);
+    }
+  }
+
+  return Array.from(countsByDay.entries()).map(([dayKey, count]) => ({
+    date: dateLabelFormatter.format(new Date(`${dayKey}T00:00:00Z`)),
+    count,
+  }));
+}
 
 export default async function AdminDashboardPage() {
   const supabase = await getCachedClient();
+  const oneDayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [
     { count: profilesCount },
@@ -16,6 +50,16 @@ export default async function AdminDashboardPage() {
     { count: humorFlavorsCount },
     { data: recentProfiles },
     { data: topCaptionRows },
+    { count: profilesLast7dCount },
+    { count: imagesLast7dCount },
+    { count: captionsLast7dCount },
+    { count: captionVotesCount },
+    { count: requestLinkedCaptionsCount },
+    { count: captionRequestsLast24hCount },
+    { count: captionsLast24hCount },
+    { data: profileTrendRows },
+    { data: imageTrendRows },
+    { data: captionTrendRows },
   ] = await Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase.from("images").select("id", { count: "exact", head: true }),
@@ -42,10 +86,59 @@ export default async function AdminDashboardPage() {
       .not("image_id", "is", null)
       .order("like_count", { ascending: false })
       .limit(1),
+    supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .gte("created_datetime_utc", sevenDaysAgoIso),
+    supabase
+      .from("images")
+      .select("id", { count: "exact", head: true })
+      .gte("created_datetime_utc", sevenDaysAgoIso),
+    supabase
+      .from("captions")
+      .select("id", { count: "exact", head: true })
+      .gte("created_datetime_utc", sevenDaysAgoIso),
+    supabase.from("caption_votes").select("id", { count: "exact", head: true }),
+    supabase
+      .from("captions")
+      .select("id", { count: "exact", head: true })
+      .not("caption_request_id", "is", null),
+    supabase
+      .from("caption_requests")
+      .select("id", { count: "exact", head: true })
+      .gte("created_datetime_utc", oneDayAgoIso),
+    supabase
+      .from("captions")
+      .select("id", { count: "exact", head: true })
+      .gte("created_datetime_utc", oneDayAgoIso),
+    supabase
+      .from("profiles")
+      .select("created_datetime_utc")
+      .gte("created_datetime_utc", sevenDaysAgoIso),
+    supabase
+      .from("images")
+      .select("created_datetime_utc")
+      .gte("created_datetime_utc", sevenDaysAgoIso),
+    supabase
+      .from("captions")
+      .select("created_datetime_utc")
+      .gte("created_datetime_utc", sevenDaysAgoIso),
   ]);
   const ratedCaptionShare = (captionsCount ?? 0) > 0
     ? Math.round(((ratedCaptionsCount ?? 0) / (captionsCount ?? 1)) * 100)
     : 0;
+  const avgVotesPerCaption = (captionsCount ?? 0) > 0
+    ? (captionVotesCount ?? 0) / (captionsCount ?? 1)
+    : 0;
+  const captionsPerRequest = (captionRequestsCount ?? 0) > 0
+    ? (requestLinkedCaptionsCount ?? 0) / (captionRequestsCount ?? 1)
+    : 0;
+  const last24hCaptionYield = (captionRequestsLast24hCount ?? 0) > 0
+    ? Math.round(((captionsLast24hCount ?? 0) / (captionRequestsLast24hCount ?? 1)) * 100)
+    : 0;
+  const profileTrendData = buildDailySeries(profileTrendRows);
+  const imageTrendData = buildDailySeries(imageTrendRows);
+  const captionTrendData = buildDailySeries(captionTrendRows);
 
   const topCaption = (topCaptionRows ?? [])[0] ?? null;
   const topCaptionImage =
@@ -125,6 +218,129 @@ export default async function AdminDashboardPage() {
             <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
               {ratedCaptionShare}%
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Momentum and quality
+          </h2>
+          <span className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Last 7 days + lifetime
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              New users (7d)
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {(profilesLast7dCount ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              New images (7d)
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {(imagesLast7dCount ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              New captions (7d)
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {(captionsLast7dCount ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Avg votes per caption
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {avgVotesPerCaption.toFixed(2)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Captions per request
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {captionsPerRequest.toFixed(2)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Total caption votes
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {(captionVotesCount ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              New caption requests (24h)
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {(captionRequestsLast24hCount ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              24h caption yield
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {last24hCaptionYield}%
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Activity trends
+          </h2>
+          <span className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Last 7 days
+          </span>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              New users
+            </p>
+            <DailyBarChart
+              data={profileTrendData}
+              dataKey="count"
+              name="Users"
+              color="#2563eb"
+            />
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              New images
+            </p>
+            <DailyBarChart
+              data={imageTrendData}
+              dataKey="count"
+              name="Images"
+              color="#059669"
+            />
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              New captions
+            </p>
+            <DailyBarChart
+              data={captionTrendData}
+              dataKey="count"
+              name="Captions"
+              color="#7c3aed"
+            />
           </div>
         </div>
       </section>
