@@ -1,8 +1,104 @@
 import { getCachedClient } from "@/lib/supabase/server";
-import { DailyBarChart, type DailyCount } from "./dashboard-charts";
+import {
+  DailyBarChart,
+  DailyVotesStackedChart,
+  type DailyCount,
+  type DailyVoteSplit,
+} from "./dashboard-charts";
 import Link from "next/link";
 
 type RowWithCreatedAt = { created_datetime_utc: string | null };
+
+type AdminSupabase = Awaited<ReturnType<typeof getCachedClient>>;
+
+const VOTE_PAGE_SIZE = 1000;
+
+async function distinctCaptionVoteCaptionIds(supabase: AdminSupabase): Promise<number> {
+  const seen = new Set<string>();
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("caption_votes")
+      .select("caption_id")
+      .range(from, from + VOTE_PAGE_SIZE - 1);
+    if (error || !data?.length) break;
+    for (const row of data) {
+      if (row.caption_id) seen.add(row.caption_id);
+    }
+    from += VOTE_PAGE_SIZE;
+    if (data.length < VOTE_PAGE_SIZE) break;
+  }
+  return seen.size;
+}
+
+async function distinctCaptionVoteProfileIds(supabase: AdminSupabase): Promise<number> {
+  const seen = new Set<string>();
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("caption_votes")
+      .select("profile_id")
+      .range(from, from + VOTE_PAGE_SIZE - 1);
+    if (error || !data?.length) break;
+    for (const row of data) {
+      if (row.profile_id) seen.add(row.profile_id);
+    }
+    from += VOTE_PAGE_SIZE;
+    if (data.length < VOTE_PAGE_SIZE) break;
+  }
+  return seen.size;
+}
+
+async function fetchCaptionVotesSince(
+  supabase: AdminSupabase,
+  sinceIso: string
+): Promise<Array<{ created_datetime_utc: string | null; vote_value: number | null }>> {
+  const out: Array<{ created_datetime_utc: string | null; vote_value: number | null }> = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("caption_votes")
+      .select("created_datetime_utc, vote_value")
+      .gte("created_datetime_utc", sinceIso)
+      .order("created_datetime_utc", { ascending: true })
+      .range(from, from + VOTE_PAGE_SIZE - 1);
+    if (error || !data?.length) break;
+    out.push(...data);
+    from += VOTE_PAGE_SIZE;
+    if (data.length < VOTE_PAGE_SIZE) break;
+  }
+  return out;
+}
+
+function buildDailyVoteSeries(
+  rows: Array<{ created_datetime_utc: string | null; vote_value: number | null }>,
+  days = 7
+): DailyVoteSplit[] {
+  const byDay = new Map<string, { up: number; down: number }>();
+  const now = new Date();
+
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    byDay.set(d.toISOString().slice(0, 10), { up: 0, down: 0 });
+  }
+
+  for (const row of rows) {
+    if (!row.created_datetime_utc) continue;
+    const dayKey = new Date(row.created_datetime_utc).toISOString().slice(0, 10);
+    if (!byDay.has(dayKey)) continue;
+    const cur = byDay.get(dayKey)!;
+    const v = row.vote_value ?? 0;
+    if (v > 0) cur.up += 1;
+    else if (v < 0) cur.down += 1;
+  }
+
+  return Array.from(byDay.entries()).map(([dayKey, { up, down }]) => ({
+    date: dateLabelFormatter.format(new Date(`${dayKey}T00:00:00Z`)),
+    up,
+    down,
+  }));
+}
 
 const dateLabelFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -54,6 +150,12 @@ export default async function AdminDashboardPage() {
     { count: imagesLast7dCount },
     { count: captionsLast7dCount },
     { count: captionVotesCount },
+    { count: captionUpvotesCount },
+    { count: captionDownvotesCount },
+    { count: captionVotesStudyCount },
+    { count: captionVotesNonStudyCount },
+    { count: captionVotesLast7dCount },
+    { count: captionVotesLast24hCount },
     { count: requestLinkedCaptionsCount },
     { count: captionRequestsLast24hCount },
     { count: captionsLast24hCount },
@@ -100,6 +202,30 @@ export default async function AdminDashboardPage() {
       .gte("created_datetime_utc", sevenDaysAgoIso),
     supabase.from("caption_votes").select("id", { count: "exact", head: true }),
     supabase
+      .from("caption_votes")
+      .select("id", { count: "exact", head: true })
+      .gt("vote_value", 0),
+    supabase
+      .from("caption_votes")
+      .select("id", { count: "exact", head: true })
+      .lt("vote_value", 0),
+    supabase
+      .from("caption_votes")
+      .select("id", { count: "exact", head: true })
+      .eq("is_from_study", true),
+    supabase
+      .from("caption_votes")
+      .select("id", { count: "exact", head: true })
+      .or("is_from_study.eq.false,is_from_study.is.null"),
+    supabase
+      .from("caption_votes")
+      .select("id", { count: "exact", head: true })
+      .gte("created_datetime_utc", sevenDaysAgoIso),
+    supabase
+      .from("caption_votes")
+      .select("id", { count: "exact", head: true })
+      .gte("created_datetime_utc", oneDayAgoIso),
+    supabase
       .from("captions")
       .select("id", { count: "exact", head: true })
       .not("caption_request_id", "is", null),
@@ -124,6 +250,14 @@ export default async function AdminDashboardPage() {
       .select("created_datetime_utc")
       .gte("created_datetime_utc", sevenDaysAgoIso),
   ]);
+
+  const [captionsWithUserVotesCount, distinctRatersCount, captionVoteRows7d] = await Promise.all([
+    distinctCaptionVoteCaptionIds(supabase),
+    distinctCaptionVoteProfileIds(supabase),
+    fetchCaptionVotesSince(supabase, sevenDaysAgoIso),
+  ]);
+  const voteTrendData = buildDailyVoteSeries(captionVoteRows7d);
+
   const ratedCaptionShare = (captionsCount ?? 0) > 0
     ? Math.round(((ratedCaptionsCount ?? 0) / (captionsCount ?? 1)) * 100)
     : 0;
@@ -135,6 +269,18 @@ export default async function AdminDashboardPage() {
     : 0;
   const last24hCaptionYield = (captionRequestsLast24hCount ?? 0) > 0
     ? Math.round(((captionsLast24hCount ?? 0) / (captionRequestsLast24hCount ?? 1)) * 100)
+    : 0;
+  const signedVotesTotal =
+    (captionUpvotesCount ?? 0) + (captionDownvotesCount ?? 0);
+  const netUserVotes = (captionUpvotesCount ?? 0) - (captionDownvotesCount ?? 0);
+  const upvoteShareAmongSignedVotes = signedVotesTotal > 0
+    ? Math.round(((captionUpvotesCount ?? 0) / signedVotesTotal) * 100)
+    : 0;
+  const captionsReceivedUserRatingShare = (captionsCount ?? 0) > 0
+    ? Math.round(((captionsWithUserVotesCount ?? 0) / (captionsCount ?? 1)) * 100)
+    : 0;
+  const avgVotesPerRatedCaption = (captionsWithUserVotesCount ?? 0) > 0
+    ? (captionVotesCount ?? 0) / (captionsWithUserVotesCount ?? 1)
     : 0;
   const profileTrendData = buildDailySeries(profileTrendRows);
   const imageTrendData = buildDailySeries(imageTrendRows);
@@ -182,42 +328,178 @@ export default async function AdminDashboardPage() {
         ))}
       </div>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            Caption rating stats
-          </h2>
-          <Link
-            href="/admin/captions?min_likes=1"
-            className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
-          >
-            View rated captions
-          </Link>
+      <section className="space-y-8 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              Likes (like_count)
+            </h2>
+            <Link
+              href="/admin/captions?min_likes=1"
+              className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+            >
+              View captions with likes
+            </Link>
+          </div>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            In-app like counts on captions — separate from up/down votes in{" "}
+            <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-800">caption_votes</code>.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Captions with likes
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {(ratedCaptionsCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Captions without likes
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {Math.max((captionsCount ?? 0) - (ratedCaptionsCount ?? 0), 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Like reach
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {ratedCaptionShare}%
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Rated captions
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-              {(ratedCaptionsCount ?? 0).toLocaleString()}
-            </p>
+
+        <div className="border-t border-zinc-200 pt-8 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              User caption ratings (caption_votes)
+            </h2>
+            <Link
+              href="/admin/captions"
+              className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Browse captions
+            </Link>
           </div>
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Unrated captions
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-              {Math.max((captionsCount ?? 0) - (ratedCaptionsCount ?? 0), 0).toLocaleString()}
-            </p>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Upvotes and downvotes recorded when users rate captions; study sessions are flagged with{" "}
+            <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-800">is_from_study</code>.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Total vote rows
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {(captionVotesCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Upvotes
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-emerald-700 dark:text-emerald-400">
+                {(captionUpvotesCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Downvotes
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-red-700 dark:text-red-400">
+                {(captionDownvotesCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Net score (up − down)
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {netUserVotes.toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Upvote share (signed votes)
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {upvoteShareAmongSignedVotes}%
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Captions with ≥1 user vote
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {(captionsWithUserVotesCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Share of captions rated
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {captionsReceivedUserRatingShare}%
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Distinct raters
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {(distinctRatersCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Avg votes per rated caption
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {avgVotesPerRatedCaption.toFixed(2)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Study votes
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {(captionVotesStudyCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Non-study votes
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {(captionVotesNonStudyCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Votes (last 7 days)
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {(captionVotesLast7dCount ?? 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Votes (last 24h)
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+                {(captionVotesLast24hCount ?? 0).toLocaleString()}
+              </p>
+            </div>
           </div>
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Rated share
+          <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+            <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Daily votes (last 7 days)
             </p>
-            <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-              {ratedCaptionShare}%
-            </p>
+            <DailyVotesStackedChart data={voteTrendData} />
           </div>
         </div>
       </section>
@@ -258,7 +540,7 @@ export default async function AdminDashboardPage() {
           </div>
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Avg votes per caption
+              Avg vote rows per caption (all)
             </p>
             <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
               {avgVotesPerCaption.toFixed(2)}
@@ -274,10 +556,10 @@ export default async function AdminDashboardPage() {
           </div>
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Total caption votes
+              User votes (last 7d)
             </p>
             <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-              {(captionVotesCount ?? 0).toLocaleString()}
+              {(captionVotesLast7dCount ?? 0).toLocaleString()}
             </p>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
